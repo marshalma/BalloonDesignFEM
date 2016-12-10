@@ -2,13 +2,13 @@ function ShellDynamic(obj_file_path)
 
 global video;
 video = [];
-E = 0.1;
+E = 0;
 nu = 0.45;
 mu = E * nu / ((1+nu)*(1-2*nu));
 lambda = 0.5 * E / (1 + nu);
 rho = 1.0;
-pressure = 0;
-damping = 2;
+pressure = 10;
+damping = 0;
 % h = 1e-5;
 
 
@@ -48,54 +48,51 @@ end
 
 t0 = -inf;
 drawHz = 100;
-dt = 0.01;
+dt = 0.001;
 tEnd = 3;
 velo = zeros(nNodes, 3);
 for t = 0 : dt : tEnd
-    t
 	% Draw scene
-    if t - t0 > 1 / drawHz
+    if t - t0 >= 1 / drawHz
 		draw(t,nodes,tris);
 		t0 = t;
     end
     
     pforce = zeros(nNodes, 3);
-    ppforce = zeros(nNodes, 3);
-%     for i = 1:nTris
-%         % calculating pressure force for each node by iterating all element
-%         e12 = nodes(tris(i,2),:) - nodes(tris(i,1),:);
-%         e13 = nodes(tris(i,3),:) - nodes(tris(i,1),:);
-%         d = cross(e12, e13);
-%         d = d / norm(d,2);
-%         area = 0.5 * norm(cross(e12,e13),2);
-%         force = pressure * d * area;
-%         pforce(tris(i,1),:) = pforce(tris(i,1),:) + force / 3;
-%         pforce(tris(i,2),:) = pforce(tris(i,2),:) + force / 3;
-%         pforce(tris(i,3),:) = pforce(tris(i,3),:) + force / 3;
-%     end
+    ddvec = zeros(nNodes, 3);
+    for i = 1:nTris
+        % calculating pressure force for each node by iterating all element
+        e12 = nodes(tris(i,2),:) - nodes(tris(i,1),:);
+        e13 = nodes(tris(i,3),:) - nodes(tris(i,1),:);
+        d = cross(e12, e13);
+        d = d / norm(d,2);
+        area = 0.5 * norm(cross(e12,e13),2);
+        force = pressure * d * area;
+        pforce(tris(i,1),:) = pforce(tris(i,1),:) + force / 3;
+        pforce(tris(i,2),:) = pforce(tris(i,2),:) + force / 3;
+        pforce(tris(i,3),:) = pforce(tris(i,3),:) + force / 3;
+     end
     
     for i = 1:nTris
         % calculating elastic force for each node by interating all
         % element
         e_12 = nodes(tris(i,2),:) - nodes(tris(i,1),:);
-        e_13 = nodes(tris(i,1),:) - nodes(tris(i,3),:);
+        e_31 = nodes(tris(i,1),:) - nodes(tris(i,3),:);
         e_23 = nodes(tris(i,3),:) - nodes(tris(i,2),:);
-        dd = cross(e_12, e_13);
+        dd = -cross(e_12, e_31);
         dd = dd / norm(dd,2);
-        norm12 = cross(dd, e_12);
-        norm23 = cross(dd, e_23);
-        norm13 = cross(dd, e_13);
+        ddvec(tris(i,1),:) = ddvec(tris(i,1),:) + dd*5;
+        norm12 = cross(dd, -e_12);
+        norm23 = cross(dd, -e_23);
+        norm13 = cross(dd, -e_31);
         
-        F = [e_12' e_13' dd'] * inv([elements(i).e12' -elements(i).e13' elements(i).d']) * elements(i).T;
+        F = [e_12' e_31' dd'] * inv([elements(i).e12' -elements(i).e13' elements(i).d']) * elements(i).T;
         epsilon = 0.5 * (F' * F - eye(3));
         P = F * (2*mu*epsilon + lambda*trace(epsilon)*eye(3));
         sigma = P * F / det(F);
         f12 = sigma * norm12';
         f23 = sigma * norm23';
         f13 = sigma * norm13';
-%         ppforce(tris(i,1),:) = ppforce(tris(i,1),:) + f12' / 2 + f13' / 2;
-%         ppforce(tris(i,2),:) = ppforce(tris(i,2),:) + f12' / 2 + f23' / 2;
-%         ppforce(tris(i,3),:) = ppforce(tris(i,3),:) + f23' / 2 + f13' / 2;
         pforce(tris(i,1),:) = pforce(tris(i,1),:) + f12' / 2 + f13' / 2;
         pforce(tris(i,2),:) = pforce(tris(i,2),:) + f12' / 2 + f23' / 2;
         pforce(tris(i,3),:) = pforce(tris(i,3),:) + f23' / 2 + f13' / 2;
@@ -103,13 +100,15 @@ for t = 0 : dt : tEnd
 	
 	% Integrate velocity and position
 	% ### TODO ###
-    quiver3(nodes(:,1),nodes(:,2),nodes(:,3),ppforce(:,1),ppforce(:,2),ppforce(:,3));
+    %quiver3(nodes(:,1),nodes(:,2),nodes(:,3), ddvec(:,1),ddvec(:,2),ddvec(:,3));
     for k = 1 : nNodes
         % using implicit damping
         velo(k,:) = (mass(k) * velo(k,:) + dt * pforce(k,:)) / (mass(k) + dt * damping * mass(k));
         % nodes(k).v = (nodes(k).m * nodes(k).v + dt * nodes(k).f) / (nodes(k).m + dt * damping * nodes(k).m);
         nodes(k,:) = nodes(k,:) + velo(k,:) * dt;
     end
+    
+    
 end
 
 if ~isempty(video)

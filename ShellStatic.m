@@ -36,7 +36,7 @@ for k = 1 : nTris
     elements(k).v = v;
     elements(k).d = d;
     elements(k).T = [u' v' d'];
-    elements(k).A = 0.5 * e12 * e13';
+    elements(k).A = 0.5 norm(cross(e12,e13),2);
 end
 
 % if ~isempty(video)
@@ -68,7 +68,7 @@ function pforce = objFun(nodes_new, tris, elements)
         e13 = nodes_new(tris(i,3),:) - nodes_new(tris(i,1),:);
         d = cross(e12, e13);
         d = d / norm(d,2);
-        area = 0.5 * (e12 * e13');
+        area = 0.5 * norm(cross(e12,e13),2);
         pforce(tris(i,1),:) = pforce(tris(i,1),:) + pressure * d * area / 3;
         pforce(tris(i,2),:) = pforce(tris(i,2),:) + pressure * d * area / 3;
         pforce(tris(i,3),:) = pforce(tris(i,3),:) + pressure * d * area / 3;
